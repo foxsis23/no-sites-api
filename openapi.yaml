@@ -1,0 +1,527 @@
+openapi: 3.0.3
+info:
+  title: no-sites-api
+  description: Multitenant backend for health/medical sites (волосся.net, безсоння.net, etc.)
+  version: 1.0.0
+
+servers:
+  - url: http://37.27.194.67
+    description: Production (Hetzner)
+  - url: http://localhost:3000
+    description: Local dev
+
+components:
+  parameters:
+    HostHeader:
+      name: Host
+      in: header
+      required: true
+      description: Site domain (e.g. volossia.net, bezsonnia.net)
+      schema:
+        type: string
+        example: volossia.net
+    AdminKeyHeader:
+      name: x-admin-key
+      in: header
+      required: true
+      description: Admin secret key from site settings.adminKey
+      schema:
+        type: string
+
+  schemas:
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          description: Response payload
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Record not found
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Hair Loss Guide
+        description:
+          type: string
+        price:
+          type: string
+          example: "29.00"
+        videoUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+        customerEmail:
+          type: string
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        amount:
+          type: string
+          example: "29.00"
+        status:
+          type: string
+          enum: [PENDING, PAID, FAILED, REFUNDED]
+        createdAt:
+          type: string
+          format: date-time
+
+    WayForPayFormData:
+      type: object
+      description: Fields to POST to https://secure.wayforpay.com/pay
+      properties:
+        merchantAccount:
+          type: string
+        merchantDomainName:
+          type: string
+        orderReference:
+          type: string
+        orderDate:
+          type: integer
+        amount:
+          type: string
+        currency:
+          type: string
+          example: UAH
+        productName:
+          type: array
+          items:
+            type: string
+        productPrice:
+          type: array
+          items:
+            type: string
+        productCount:
+          type: array
+          items:
+            type: integer
+        merchantSignature:
+          type: string
+        apiVersion:
+          type: integer
+        language:
+          type: string
+          example: UA
+
+    EventSummary:
+      type: object
+      properties:
+        event:
+          type: string
+          example: page_view
+        count:
+          type: integer
+          example: 523
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /products:
+    get:
+      summary: List active products for site
+      tags: [Products]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+      responses:
+        "200":
+          description: List of active products ordered by order field
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Product"
+        "404":
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    post:
+      summary: Create product (admin)
+      tags: [Products]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - $ref: "#/components/parameters/AdminKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, price, order]
+              properties:
+                title:
+                  type: string
+                  example: Hair Loss Guide
+                description:
+                  type: string
+                  example: Detailed explanation of your hair loss type
+                price:
+                  type: string
+                  example: "29.00"
+                videoUrl:
+                  type: string
+                  example: https://example.com/video.mp4
+                isActive:
+                  type: boolean
+                  default: true
+                order:
+                  type: integer
+                  example: 1
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Product"
+        "401":
+          description: Missing admin key
+        "403":
+          description: Invalid admin key
+
+  /products/{id}:
+    get:
+      summary: Get single product
+      tags: [Products]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Product found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+
+    patch:
+      summary: Update product (admin)
+      tags: [Products]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - $ref: "#/components/parameters/AdminKeyHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: string
+                  example: "49.00"
+                videoUrl:
+                  type: string
+                isActive:
+                  type: boolean
+                order:
+                  type: integer
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Product"
+
+    delete:
+      summary: Soft delete product (admin)
+      tags: [Products]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - $ref: "#/components/parameters/AdminKeyHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Product deactivated (isActive set to false)
+
+  /payments/create:
+    post:
+      summary: Create WayForPay payment
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, customerEmail, customerName, customerPhone]
+              properties:
+                productId:
+                  type: string
+                  format: uuid
+                customerEmail:
+                  type: string
+                  format: email
+                  example: user@example.com
+                customerName:
+                  type: string
+                  example: John Doe
+                customerPhone:
+                  type: string
+                  example: "+380991234567"
+      responses:
+        "201":
+          description: Order created, WayForPay form data returned
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          orderId:
+                            type: string
+                            format: uuid
+                          formData:
+                            $ref: "#/components/schemas/WayForPayFormData"
+        "404":
+          description: Product not found
+
+  /payments/webhook:
+    post:
+      summary: WayForPay webhook callback (called by WayForPay servers)
+      tags: [Payments]
+      description: |
+        Configure this URL in WayForPay merchant settings.
+        Verifies HMAC-MD5 signature and updates order status (PENDING → PAID or FAILED).
+        Returns signed acknowledgment to WayForPay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                merchantAccount:
+                  type: string
+                orderReference:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+                authCode:
+                  type: string
+                cardPan:
+                  type: string
+                transactionStatus:
+                  type: string
+                  example: Approved
+                reasonCode:
+                  type: string
+                merchantSignature:
+                  type: string
+      responses:
+        "200":
+          description: Signed acknowledgment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderReference:
+                    type: string
+                  status:
+                    type: string
+                    example: accept
+                  time:
+                    type: integer
+                  signature:
+                    type: string
+
+  /payments/orders:
+    get:
+      summary: List orders for site (admin)
+      tags: [Payments]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - $ref: "#/components/parameters/AdminKeyHeader"
+      responses:
+        "200":
+          description: Last 100 orders for the site
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Order"
+
+  /analytics/event:
+    post:
+      summary: Track analytics event
+      tags: [Analytics]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event]
+              properties:
+                event:
+                  type: string
+                  example: page_view
+                  description: |
+                    Common events: page_view, start_test, complete_test,
+                    result_view, click_paywall, payment_success, payment_fail,
+                    open_delivery
+                metadata:
+                  type: object
+                  example:
+                    page: "/"
+                    referrer: "google.com"
+      responses:
+        "200":
+          description: Event tracked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+
+  /analytics/summary:
+    get:
+      summary: Event counts grouped by event name (admin)
+      tags: [Analytics]
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - $ref: "#/components/parameters/AdminKeyHeader"
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            minimum: 1
+            maximum: 365
+          description: Number of past days to include
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/EventSummary"
