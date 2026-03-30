@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Site {
+  id        String   @id @default(uuid())
+  domain    String   @unique
+  name      String
+  settings  Json
+  createdAt DateTime @default(now())
+
+  products        Product[]
+  orders          Order[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([domain])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  siteId      String
+  title       String
+  description String
+  price       Decimal  @db.Decimal(10, 2)
+  videoUrl    String?
+  isActive    Boolean  @default(true)
+  order       Int
+  createdAt   DateTime @default(now())
+
+  site   Site    @relation(fields: [siteId], references: [id])
+  orders Order[]
+
+  @@index([siteId, order])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  siteId         String
+  productId      String
+  customerEmail  String
+  customerName   String
+  customerPhone  String
+  amount         Decimal     @db.Decimal(10, 2)
+  status         OrderStatus @default(PENDING)
+  wayforpayData  Json?
+  createdAt      DateTime    @default(now())
+
+  site    Site    @relation(fields: [siteId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([siteId, createdAt])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  siteId    String
+  event     String
+  metadata  Json?
+  ip        String
+  createdAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId, event, createdAt])
+}
