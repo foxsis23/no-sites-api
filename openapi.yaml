@@ -141,6 +141,22 @@ components:
           type: string
           example: UA
 
+    Session:
+      type: object
+      properties:
+        session_token:
+          type: string
+          format: uuid
+        expires_at:
+          type: string
+          format: date-time
+          example: "2026-05-02T00:00:00.000Z"
+        productIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
     EventSummary:
       type: object
       properties:
@@ -152,6 +168,53 @@ components:
           example: 523
 
 paths:
+  /auth/session:
+    post:
+      summary: Create session by email lookup
+      tags: [Auth]
+      description: |
+        Looks up paid orders by email and site, creates a 30-day session token.
+        Always returns 200 — if no orders found, productIds is empty (silent result).
+        Response time is padded to a fixed minimum to prevent timing oracle attacks.
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        "200":
+          description: Session created (productIds may be empty if no paid orders found)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Session"
+        "400":
+          description: Invalid or missing email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /health:
     get:
       summary: Health check
