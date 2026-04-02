@@ -7,6 +7,7 @@ import healthRoute from './modules/health/health.route.js';
 import productsRoute from './modules/products/products.route.js';
 import paymentsRoute from './modules/payments/payments.route.js';
 import analyticsRoute from './modules/analytics/analytics.route.js';
+import authRoute from './modules/auth/auth.route.js';
 import type { Config } from './config.js';
 
 export async function buildApp(config: Config) {
@@ -36,6 +37,7 @@ export async function buildApp(config: Config) {
   await fastify.register(productsRoute, { config });
   await fastify.register(paymentsRoute, { config });
   await fastify.register(analyticsRoute);
+  await fastify.register(authRoute);
 
   return fastify;
 }

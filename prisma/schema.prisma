@@ -17,6 +17,7 @@ model Site {
   products        Product[]
   orders          Order[]
   analyticsEvents AnalyticsEvent[]
+  sessions        Session[]
 
   @@index([domain])
 }
@@ -61,6 +62,21 @@ model Order {
   product Product @relation(fields: [productId], references: [id])
 
   @@index([siteId, createdAt])
+  @@index([customerEmail])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  siteId    String
+  email     String
+  token     String   @unique @default(uuid())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([token])
+  @@index([siteId, email])
 }
 
 model AnalyticsEvent {
