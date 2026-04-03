@@ -19,7 +19,7 @@ export const updateProductSchema = {
     type: 'object',
     required: ['id'],
     properties: {
-      id: { type: 'string', format: 'uuid' },
+      id: { type: 'string' },
     },
     additionalProperties: false,
   },
@@ -43,7 +43,7 @@ export const productIdParamSchema = {
     type: 'object',
     required: ['id'],
     properties: {
-      id: { type: 'string', format: 'uuid' },
+      id: { type: 'string' },
     },
     additionalProperties: false,
   },
