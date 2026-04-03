@@ -3,7 +3,7 @@ export const createPaymentSchema = {
     type: 'object',
     required: ['productId', 'customerEmail', 'customerName', 'customerPhone'],
     properties: {
-      productId: { type: 'string', format: 'uuid' },
+      productId: { type: 'string', minLength: 1 },
       customerEmail: { type: 'string', format: 'email' },
       customerName: { type: 'string', minLength: 1, maxLength: 255 },
       customerPhone: { type: 'string', minLength: 7, maxLength: 20 },
