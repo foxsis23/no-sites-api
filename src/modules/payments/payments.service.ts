@@ -162,6 +162,8 @@ export async function handleLiqPayCallback(
     return;
   }
 
+  console.log('LIQPAY CALLBACK DATA:', JSON.stringify(callbackData));
+
   // 4. Extract product_id and customer_email from info (LiqPay passes custom data via info field)
   const info = callbackData.info ? JSON.parse(callbackData.info) : {};
   const productId = callbackData.product_id ?? info.product_id;
