@@ -53,7 +53,7 @@ export async function createProduct(
 ): Promise<Product> {
   return prisma.product.create({
     data: {
-      siteId,
+      site: { connect: { id: siteId } },
       title: data.title,
       description: data.description,
       price: new Prisma.Decimal(data.price),
