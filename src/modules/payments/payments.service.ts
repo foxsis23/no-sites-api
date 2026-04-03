@@ -162,21 +162,26 @@ export async function handleLiqPayCallback(
     return;
   }
 
-  // 4. Find product to resolve site
+  // 4. Extract product_id and customer_email from info (LiqPay passes custom data via info field)
+  const info = callbackData.info ? JSON.parse(callbackData.info) : {};
+  const productId = callbackData.product_id ?? info.product_id;
+  const customerEmail = callbackData.customer_email ?? info.customer_email;
+
+  // 5. Find product to resolve site
   const product = await prisma.product.findUnique({
-    where: { id: callbackData.product_id },
+    where: { id: productId },
   });
 
   if (!product) {
     throw new AppError(404, 'Product not found');
   }
 
-  // 5. Create Order with PAID status
+  // 6. Create Order with PAID status
   const order = await prisma.order.create({
     data: {
       siteId: product.siteId,
       productId: product.id,
-      customerEmail: callbackData.customer_email,
+      customerEmail: customerEmail,
       customerName: '',
       customerPhone: '',
       amount: callbackData.amount,
@@ -185,8 +190,8 @@ export async function handleLiqPayCallback(
     },
   });
 
-  // 6. Create session for the customer
-  await createSessionInternal(prisma, order.siteId, order.customerEmail);
+  // 7. Create session for the customer
+  await createSessionInternal(prisma, order.siteId, customerEmail);
 }
 
 export async function getOrdersBysite(
