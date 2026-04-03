@@ -165,9 +165,9 @@ export async function handleLiqPayCallback(
   console.log('LIQPAY CALLBACK DATA:', JSON.stringify(callbackData));
 
   // 4. Extract product_id and customer_email from info (LiqPay passes custom data via info field)
-  const info = callbackData.info ? JSON.parse(callbackData.info) : {};
-  const productId = callbackData.product_id ?? info.product_id;
-  const customerEmail = callbackData.customer_email ?? info.customer_email;
+  const info = (callbackData.info ?? {}) as Record<string, unknown>;
+  const productId = callbackData.product_id ?? (info.product_id as string | undefined);
+  const customerEmail = callbackData.customer_email ?? (info.customer_email as string | undefined);
 
   // 5. Find product to resolve site
   const product = await prisma.product.findUnique({
