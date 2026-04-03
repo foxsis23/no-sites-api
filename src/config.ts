@@ -15,6 +15,9 @@ export const config = {
     merchantAccount: requireEnv('WFP_MERCHANT_ACCOUNT'),
     merchantKey: requireEnv('WFP_MERCHANT_KEY'),
   },
+  liqpay: {
+    privateKey: requireEnv('LIQPAY_PRIVATE_KEY'),
+  },
 } as const;
 
 export type Config = typeof config;

@@ -56,6 +56,7 @@ model Order {
   amount         Decimal     @db.Decimal(10, 2)
   status         OrderStatus @default(PENDING)
   wayforpayData  Json?
+  liqpayData     Json?
   createdAt      DateTime    @default(now())
 
   site    Site    @relation(fields: [siteId], references: [id])

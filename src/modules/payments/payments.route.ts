@@ -2,9 +2,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Config } from '../../config.js';
 import { resolveSite } from '../../shared/middleware/resolveSite.js';
 import { adminAuth } from '../../shared/middleware/adminAuth.js';
-import { createPaymentSchema, webhookSchema } from './payments.schema.js';
-import { createPayment, handleWebhook, getOrdersBysite } from './payments.service.js';
+import { createPaymentSchema, webhookSchema, liqpayCallbackSchema } from './payments.schema.js';
+import { createPayment, handleWebhook, handleLiqPayCallback, getOrdersBysite } from './payments.service.js';
 import type { WebhookBody } from './wayforpay.js';
+import type { LiqPayCallbackBody } from './liqpay.js';
 
 interface PaymentsRouteOptions {
   config: Config;
@@ -25,6 +26,20 @@ export default async function paymentsRoute(
     merchantAccount: opts.config.wayforpay.merchantAccount,
     merchantKey: opts.config.wayforpay.merchantKey,
   };
+
+  // Parse application/x-www-form-urlencoded for LiqPay callback
+  fastify.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      try {
+        const params = new URLSearchParams(body as string);
+        done(null, Object.fromEntries(params.entries()));
+      } catch (err) {
+        done(err as Error);
+      }
+    },
+  );
 
   // POST /payments/create
   fastify.post<{ Body: CreatePaymentBody }>(
@@ -59,6 +74,20 @@ export default async function paymentsRoute(
       );
       // WayForPay expects exact JSON format, not our envelope
       return reply.status(200).send(response);
+    },
+  );
+
+  // POST /payments/liqpay-callback (LiqPay callback — form-encoded)
+  fastify.post<{ Body: LiqPayCallbackBody }>(
+    '/payments/liqpay-callback',
+    { schema: liqpayCallbackSchema },
+    async (request: FastifyRequest<{ Body: LiqPayCallbackBody }>, reply: FastifyReply) => {
+      await handleLiqPayCallback(
+        request.server.prisma,
+        opts.config.liqpay.privateKey,
+        request.body,
+      );
+      return reply.status(200).send({ success: true });
     },
   );
 

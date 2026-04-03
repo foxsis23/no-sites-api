@@ -12,6 +12,19 @@ export const createPaymentSchema = {
   },
 } as const;
 
+// LiqPay sends form-encoded body: data=BASE64_JSON&signature=BASE64_SHA1
+export const liqpayCallbackSchema = {
+  body: {
+    type: 'object',
+    required: ['data', 'signature'],
+    properties: {
+      data: { type: 'string' },
+      signature: { type: 'string' },
+    },
+    additionalProperties: false,
+  },
+} as const;
+
 // WayForPay webhook body — keep loose as WayForPay may send extra fields
 export const webhookSchema = {
   body: {

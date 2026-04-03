@@ -8,6 +8,8 @@ import {
   buildWebhookResponse,
 } from './wayforpay.js';
 import type { WebhookBody, WayForPayFormData, WebhookResponse } from './wayforpay.js';
+import { verifyLiqPaySignature, decodeLiqPayData } from './liqpay.js';
+import type { LiqPayCallbackBody } from './liqpay.js';
 import { createSessionInternal } from '../auth/auth.service.js';
 
 interface WayForPayConfig {
@@ -127,6 +129,64 @@ export async function handleWebhook(
 
   // 4. Return signed acknowledgment
   return buildWebhookResponse(body.orderReference, time, config.merchantKey);
+}
+
+export async function handleLiqPayCallback(
+  prisma: PrismaClient,
+  privateKey: string,
+  body: LiqPayCallbackBody,
+): Promise<void> {
+  // 1. Verify signature
+  if (!verifyLiqPaySignature(body.data, body.signature, privateKey)) {
+    throw new AppError(400, 'Invalid LiqPay signature');
+  }
+
+  // 2. Decode data
+  const callbackData = decodeLiqPayData(body.data);
+
+  // 3. Only process successful payments
+  if (callbackData.status !== 'success') {
+    return;
+  }
+
+  // Idempotency: skip if we already processed this order_id
+  const existing = await prisma.order.findFirst({
+    where: {
+      liqpayData: {
+        path: ['order_id'],
+        equals: callbackData.order_id,
+      },
+    },
+  });
+  if (existing) {
+    return;
+  }
+
+  // 4. Find product to resolve site
+  const product = await prisma.product.findUnique({
+    where: { id: callbackData.product_id },
+  });
+
+  if (!product) {
+    throw new AppError(404, 'Product not found');
+  }
+
+  // 5. Create Order with PAID status
+  const order = await prisma.order.create({
+    data: {
+      siteId: product.siteId,
+      productId: product.id,
+      customerEmail: callbackData.customer_email,
+      customerName: '',
+      customerPhone: '',
+      amount: callbackData.amount,
+      status: 'PAID',
+      liqpayData: callbackData as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  // 6. Create session for the customer
+  await createSessionInternal(prisma, order.siteId, order.customerEmail);
 }
 
 export async function getOrdersBysite(
