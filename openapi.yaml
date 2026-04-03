@@ -157,6 +157,16 @@ components:
             type: string
             format: uuid
 
+    Me:
+      type: object
+      properties:
+        product_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          example: ["noalert_1", "noalert_2"]
+
     EventSummary:
       type: object
       properties:
@@ -168,6 +178,47 @@ components:
           example: 523
 
 paths:
+  /auth/me:
+    get:
+      summary: Get products for current session
+      tags: [Auth]
+      description: |
+        Validates the session token from the Authorization header and returns
+        the list of product IDs the user has paid for on this site.
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+        - name: Authorization
+          in: header
+          required: true
+          description: "Bearer <session_token>"
+          schema:
+            type: string
+            example: "Bearer 550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Session valid, product IDs returned
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Me"
+        "401":
+          description: Missing, invalid, or expired session token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Site not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /auth/session:
     post:
       summary: Create session by email lookup
@@ -454,6 +505,7 @@ paths:
       description: |
         Configure this URL in WayForPay merchant settings.
         Verifies HMAC-MD5 signature and updates order status (PENDING → PAID or FAILED).
+        On PAID, automatically creates a session for the customer email.
         Returns signed acknowledgment to WayForPay.
       requestBody:
         required: true

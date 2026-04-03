@@ -8,6 +8,7 @@ import {
   buildWebhookResponse,
 } from './wayforpay.js';
 import type { WebhookBody, WayForPayFormData, WebhookResponse } from './wayforpay.js';
+import { createSessionInternal } from '../auth/auth.service.js';
 
 interface WayForPayConfig {
   merchantAccount: string;
@@ -118,6 +119,10 @@ export async function handleWebhook(
         wayforpayData: body as unknown as Prisma.InputJsonValue,
       },
     });
+
+    if (newStatus === 'PAID') {
+      await createSessionInternal(prisma, order.siteId, order.customerEmail);
+    }
   }
 
   // 4. Return signed acknowledgment

@@ -1,3 +1,20 @@
+export const getMeSchema = {
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        data: {
+          type: 'object',
+          properties: {
+            product_ids: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export const createSessionSchema = {
   body: {
     type: 'object',

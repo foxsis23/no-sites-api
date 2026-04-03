@@ -1,13 +1,33 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { resolveSite } from '../../shared/middleware/resolveSite.js';
-import { createSessionSchema } from './auth.schema.js';
-import { createSession } from './auth.service.js';
+import { createSessionSchema, getMeSchema } from './auth.schema.js';
+import { createSession, getSessionProducts } from './auth.service.js';
 
 interface CreateSessionBody {
   email: string;
 }
 
 export default async function authRoute(fastify: FastifyInstance): Promise<void> {
+  // GET /auth/me
+  fastify.get(
+    '/auth/me',
+    { schema: getMeSchema, preHandler: [resolveSite] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const authHeader = request.headers['authorization'];
+      const token =
+        typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+          ? authHeader.slice(7)
+          : null;
+
+      if (!token) {
+        return reply.status(401).send({ success: false, error: 'Missing Bearer token' });
+      }
+
+      const result = await getSessionProducts(request.server.prisma, request.site.id, token);
+      return reply.status(200).send({ success: true, data: result });
+    },
+  );
+
   // POST /auth/session
   fastify.post<{ Body: CreateSessionBody }>(
     '/auth/session',
