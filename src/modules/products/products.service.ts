@@ -23,9 +23,10 @@ interface UpdateProductData {
 export async function listProducts(
   prisma: PrismaClient,
   siteId: string,
+  includeInactive = false,
 ): Promise<Product[]> {
   return prisma.product.findMany({
-    where: { siteId, isActive: true },
+    where: { siteId, ...(includeInactive ? {} : { isActive: true }) },
     orderBy: { order: 'asc' },
   });
 }

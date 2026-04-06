@@ -287,13 +287,20 @@ paths:
 
   /products:
     get:
-      summary: List active products for site
+      summary: List products for site
       tags: [Products]
       parameters:
         - $ref: "#/components/parameters/HostHeader"
+        - in: query
+          name: includeInactive
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: If true, returns inactive (soft-deleted) products as well. Defaults to false (active only).
       responses:
         "200":
-          description: List of active products ordered by order field
+          description: List of products ordered by order field (active only unless includeInactive=true)
           content:
             application/json:
               schema:

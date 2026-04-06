@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Config } from '../../config.js';
 import { resolveSite } from '../../shared/middleware/resolveSite.js';
 import { adminAuth } from '../../shared/middleware/adminAuth.js';
@@ -46,11 +46,17 @@ export default async function productsRoute(
   _opts: ProductsRouteOptions,
 ): Promise<void> {
   // GET /products
-  fastify.get(
+  fastify.get<{ Querystring: { includeInactive?: string | boolean } }>(
     '/products',
     { preHandler: [resolveSite] },
-    async (request: FastifyRequest, _reply: FastifyReply) => {
-      const products = await listProducts(request.server.prisma, request.site.id);
+    async (request, _reply: FastifyReply) => {
+      const raw = request.query.includeInactive;
+      const includeInactive = raw === true || raw === 'true' || raw === '1';
+      const products = await listProducts(
+        request.server.prisma,
+        request.site.id,
+        includeInactive,
+      );
       return { success: true, data: products };
     },
   );
