@@ -27,7 +27,7 @@ interface CreateBody {
   title: string;
   description: string;
   price: string;
-  videoUrl?: string;
+  videoUrls?: string[];
   isActive?: boolean;
   order: number;
 }
@@ -36,7 +36,7 @@ interface UpdateBody {
   title?: string;
   description?: string;
   price?: string;
-  videoUrl?: string;
+  videoUrls?: string[];
   isActive?: boolean;
   order?: number;
 }
