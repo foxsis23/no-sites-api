@@ -65,9 +65,12 @@ components:
         price:
           type: string
           example: "29.00"
-        videoUrl:
-          type: string
-          nullable: true
+        videoUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 10
         isActive:
           type: boolean
         order:
@@ -342,9 +345,13 @@ paths:
                 price:
                   type: string
                   example: "29.00"
-                videoUrl:
-                  type: string
-                  example: https://example.com/video.mp4
+                videoUrls:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  maxItems: 10
+                  example: ["https://example.com/video1.mp4", "https://example.com/video2.mp4"]
                 isActive:
                   type: boolean
                   default: true
@@ -422,8 +429,12 @@ paths:
                 price:
                   type: string
                   example: "49.00"
-                videoUrl:
-                  type: string
+                videoUrls:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  maxItems: 10
                 isActive:
                   type: boolean
                 order:
