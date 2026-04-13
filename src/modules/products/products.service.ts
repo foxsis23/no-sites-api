@@ -6,7 +6,7 @@ interface CreateProductData {
   title: string;
   description: string;
   price: string;
-  videoUrl?: string;
+  videoUrls?: string[];
   isActive?: boolean;
   order: number;
 }
@@ -15,7 +15,7 @@ interface UpdateProductData {
   title?: string;
   description?: string;
   price?: string;
-  videoUrl?: string;
+  videoUrls?: string[];
   isActive?: boolean;
   order?: number;
 }
@@ -58,7 +58,7 @@ export async function createProduct(
       title: data.title,
       description: data.description,
       price: new Prisma.Decimal(data.price),
-      videoUrl: data.videoUrl ?? null,
+      videoUrls: data.videoUrls ?? [],
       isActive: data.isActive ?? true,
       order: data.order,
     },
@@ -80,7 +80,7 @@ export async function updateProduct(
       ...(data.title !== undefined && { title: data.title }),
       ...(data.description !== undefined && { description: data.description }),
       ...(data.price !== undefined && { price: new Prisma.Decimal(data.price) }),
-      ...(data.videoUrl !== undefined && { videoUrl: data.videoUrl }),
+      ...(data.videoUrls !== undefined && { videoUrls: data.videoUrls }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
       ...(data.order !== undefined && { order: data.order }),
     },

@@ -28,7 +28,7 @@ model Product {
   title       String
   description String
   price       Decimal  @db.Decimal(10, 2)
-  videoUrl    String?
+  videoUrls   String[]
   isActive    Boolean  @default(true)
   order       Int
   createdAt   DateTime @default(now())
