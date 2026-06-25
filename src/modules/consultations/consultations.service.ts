@@ -37,7 +37,6 @@ export async function sendConsultationEmail(
   smtp: SmtpConfig,
   recipient: string,
   input: ConsultationInput,
-  sourceDomain: string | null,
 ): Promise<void> {
   const rows: ReadonlyArray<readonly [string, string]> = [
     ["Ім'я", input.name],
@@ -47,12 +46,7 @@ export async function sendConsultationEmail(
     ['Проблема', input.message],
   ];
 
-  const subjectSuffix = sourceDomain ? ` — ${sourceDomain}` : '';
-  const heading = `Нова заявка на консультацію${
-    sourceDomain ? ` (${escapeHtml(sourceDomain)})` : ''
-  }`;
-
-  const html = `<h2>${heading}</h2>
+  const html = `<h2>Нова заявка на консультацію</h2>
 <table cellpadding="6" style="border-collapse:collapse">
 ${rows
   .map(
@@ -69,7 +63,7 @@ ${rows
   await getTransporter(smtp).sendMail({
     from: smtp.from,
     to: recipient,
-    subject: `Заявка на консультацію${subjectSuffix}`,
+    subject: 'Заявка на консультацію',
     text,
     html,
   });

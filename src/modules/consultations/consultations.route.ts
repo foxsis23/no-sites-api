@@ -9,18 +9,6 @@ interface ConsultationsRouteOptions {
   config: Config;
 }
 
-function resolveSourceDomain(request: FastifyRequest): string | null {
-  const forwardedHost = request.headers['x-forwarded-host'];
-  const rawHost = forwardedHost
-    ? Array.isArray(forwardedHost)
-      ? forwardedHost[0]
-      : forwardedHost.split(',')[0]
-    : request.headers['host'];
-
-  if (!rawHost) return null;
-  return rawHost.trim().split(':')[0] ?? null;
-}
-
 export default async function consultationsRoute(
   fastify: FastifyInstance,
   opts: ConsultationsRouteOptions,
@@ -33,12 +21,7 @@ export default async function consultationsRoute(
     { schema: consultationSchema },
     async (request: FastifyRequest<{ Body: ConsultationInput }>, reply: FastifyReply) => {
       try {
-        await sendConsultationEmail(
-          config.smtp,
-          config.consultationEmail,
-          request.body,
-          resolveSourceDomain(request),
-        );
+        await sendConsultationEmail(config.smtp, config.consultationEmail, request.body);
       } catch (err) {
         request.log.error(err, 'Failed to send consultation email');
         throw new AppError(502, 'Failed to send consultation request. Please try again later.');
