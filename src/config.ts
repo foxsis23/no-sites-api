@@ -8,6 +8,8 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const smtpUser = requireEnv('SMTP_USER');
+
 export const config = {
   port: parseInt(process.env['PORT'] ?? '3000', 10),
   databaseUrl: requireEnv('DATABASE_URL'),
@@ -18,6 +20,15 @@ export const config = {
   liqpay: {
     privateKey: requireEnv('LIQPAY_PRIVATE_KEY'),
   },
+  smtp: {
+    host: requireEnv('SMTP_HOST'),
+    port: parseInt(process.env['SMTP_PORT'] ?? '587', 10),
+    user: smtpUser,
+    pass: requireEnv('SMTP_PASS'),
+    from: process.env['SMTP_FROM'] ?? smtpUser,
+  },
+  consultationEmail: requireEnv('CONSULTATION_EMAIL'),
 } as const;
 
 export type Config = typeof config;
+export type SmtpConfig = Config['smtp'];

@@ -658,3 +658,70 @@ paths:
                         type: array
                         items:
                           $ref: "#/components/schemas/EventSummary"
+
+  /consultation:
+    post:
+      summary: Submit consultation (lead) form; emailed to configured recipient
+      tags: [Consultations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone, bank, role, message]
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                  example: Іван
+                phone:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  example: "+380501234567"
+                bank:
+                  type: string
+                  description: "Банк" select value
+                  enum:
+                    - ПриватБанк
+                    - Ощадбанк
+                    - Monobank
+                    - ПУМБ
+                    - Райффайзен Банк
+                    - Universal Bank
+                    - А-Банк
+                    - Sense Bank
+                    - Інший банк
+                  example: ПриватБанк
+                role:
+                  type: string
+                  description: "Хто ви" select value
+                  enum:
+                    - ФОП
+                    - Фізична особа
+                    - Юридична особа
+                    - Самозайнята особа
+                  example: Фізична особа
+                message:
+                  type: string
+                  maxLength: 5000
+                  description: Short problem description
+                  example: Заблокували рахунок
+      responses:
+        "201":
+          description: Consultation request sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "502":
+          description: Email delivery failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
