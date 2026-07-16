@@ -4,6 +4,7 @@ import { resolveSite } from '../../shared/middleware/resolveSite.js';
 import { adminAuth } from '../../shared/middleware/adminAuth.js';
 import {
   createPaymentSchema,
+  createHutkoTestPaymentSchema,
   webhookSchema,
   liqpayCallbackSchema,
   hutkoCallbackSchema,
@@ -15,6 +16,8 @@ import {
   createHutkoPayment,
   handleHutkoCallback,
   getOrdersBysite,
+  HUTKO_TEST_CONFIG,
+  HUTKO_TEST_RESPONSE_URL,
 } from './payments.service.js';
 import type { WebhookBody } from './wayforpay.js';
 import type { LiqPayCallbackBody } from './liqpay.js';
@@ -29,6 +32,10 @@ interface CreatePaymentBody {
   customerEmail: string;
   customerName: string;
   customerPhone: string;
+}
+
+interface CreateHutkoTestBody extends CreatePaymentBody {
+  responseUrl?: string;
 }
 
 export default async function paymentsRoute(
@@ -124,6 +131,30 @@ export default async function paymentsRoute(
         hutkoConfig,
         opts.config.apiBaseUrl,
         request.body,
+      );
+      return reply.status(201).send({ success: true, data: result });
+    },
+  );
+
+  // POST /payments/hutko/test (Hutko SANDBOX checkout — test merchant 1700002)
+  // Uses the public Hutko/Fondy test merchant, NOT production credentials.
+  // Pass `responseUrl` in the body to control the post-payment redirect.
+  fastify.post<{ Body: CreateHutkoTestBody }>(
+    '/payments/hutko/test',
+    {
+      schema: createHutkoTestPaymentSchema,
+      preHandler: [resolveSite],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (request: FastifyRequest<{ Body: CreateHutkoTestBody }>, reply: FastifyReply) => {
+      const { responseUrl, ...paymentBody } = request.body;
+      const result = await createHutkoPayment(
+        request.server.prisma,
+        request.site,
+        HUTKO_TEST_CONFIG,
+        opts.config.apiBaseUrl,
+        paymentBody,
+        { responseUrl: responseUrl ?? HUTKO_TEST_RESPONSE_URL },
       );
       return reply.status(201).send({ success: true, data: result });
     },

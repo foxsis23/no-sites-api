@@ -28,6 +28,22 @@ interface HutkoConfig {
   secretKey: string;
 }
 
+// Hutko/Fondy public sandbox merchant. Purchase & verification use the
+// `test` secret; p2p credit uses `testcredit`. UAH only.
+export const HUTKO_TEST_CONFIG: HutkoConfig = {
+  merchantId: '1700002',
+  secretKey: 'test',
+};
+
+// Default post-payment redirect for the Hutko sandbox (тривога-нет prod home).
+export const HUTKO_TEST_RESPONSE_URL = 'https://www.xn--80adds5ajn.net';
+
+interface CreateHutkoOptions {
+  // Overrides the response_url the customer is redirected to after payment.
+  // Without it the checkout falls back to the site's own domain.
+  responseUrl?: string;
+}
+
 interface CreateHutkoPaymentResult {
   orderId: string;
   checkoutUrl: string;
@@ -218,6 +234,7 @@ export async function createHutkoPayment(
   config: HutkoConfig,
   apiBaseUrl: string,
   body: CreatePaymentBody,
+  options: CreateHutkoOptions = {},
 ): Promise<CreateHutkoPaymentResult> {
   // 1. Fetch and validate product
   const product = await prisma.product.findUnique({
@@ -249,9 +266,10 @@ export async function createHutkoPayment(
   const amountKopiykas = Math.round(Number(product.price) * 100).toString();
   const settings = site.settings as Record<string, unknown>;
   const responseUrl =
-    typeof settings['paymentReturnUrl'] === 'string'
+    options.responseUrl ??
+    (typeof settings['paymentReturnUrl'] === 'string'
       ? settings['paymentReturnUrl']
-      : `https://${site.domain}`;
+      : `https://${site.domain}`);
 
   const request = buildCheckoutRequest(
     {
