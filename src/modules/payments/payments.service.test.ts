@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient, Site } from '@prisma/client';
-import { createHutkoPayment, handleHutkoCallback } from './payments.service.js';
+import {
+  createHutkoPayment,
+  handleHutkoCallback,
+  HUTKO_TEST_CONFIG,
+  HUTKO_TEST_RESPONSE_URL,
+} from './payments.service.js';
 import { genSignature } from './hutko.js';
 import type { HutkoCallbackBody } from './hutko.js';
 import { createSessionInternal } from '../auth/auth.service.js';
@@ -85,19 +90,22 @@ describe('createHutkoPayment', () => {
     expect(sent.response_url).toBe('https://www.xn--80adds5ajn.net');
   });
 
-  it('uses an explicit responseUrl override when provided', async () => {
+  // Mirrors the POST /payments/hutko/test route wiring: sandbox merchant +
+  // default redirect. Guards against the return URL / merchant regressing.
+  it('test-endpoint config sends the тривога-нет return URL and test merchant', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       json: async () => ({ response: { checkout_url: 'https://pay.hutko.org/abc' } }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await createHutkoPayment(makePrisma(), site, hutkoConfig, API_BASE_URL, body, {
-      responseUrl: 'https://example.test/thanks',
+    await createHutkoPayment(makePrisma(), site, HUTKO_TEST_CONFIG, API_BASE_URL, body, {
+      responseUrl: HUTKO_TEST_RESPONSE_URL,
     });
 
     const call = fetchMock.mock.calls[0] as [string, { body: string }];
     const sent = JSON.parse(call[1].body).request;
-    expect(sent.response_url).toBe('https://example.test/thanks');
+    expect(sent.response_url).toBe('https://www.xn--80adds5ajn.net');
+    expect(sent.merchant_id).toBe('1700002');
   });
 
   it('rejects a product from another site', async () => {
