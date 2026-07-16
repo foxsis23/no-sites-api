@@ -1,7 +1,7 @@
 # Hutko Payment Integration — Design
 
 **Date:** 2026-07-16
-**Site:** тривога-нет (multitenant backend `no-sites-api`)
+**Site:** тривога-нет — prod `https://www.xn--80adds5ajn.net/` (punycode for `тривога.net`), multitenant backend `no-sites-api`
 **Status:** Approved for planning
 
 ## Goal
@@ -40,7 +40,10 @@ which provider endpoint to call.
 2. **`server_callback_url`** built from a new `API_BASE_URL` env var (stable, independent
    of proxy headers): `${API_BASE_URL}/payments/hutko-callback`.
 3. **`response_url`** (browser return after payment) taken from
-   `site.settings.paymentReturnUrl`, defaulting to `https://${site.domain}`.
+   `site.settings.paymentReturnUrl`, defaulting to `https://${site.domain}`. For prod
+   тривога-нет this resolves to `https://www.xn--80adds5ajn.net/`. Confirm the DB
+   `Site.domain` value matches (punycode `www.xn--80adds5ajn.net`), otherwise set
+   `site.settings.paymentReturnUrl` explicitly.
 4. **On successful payment**, replicate existing behavior: mark Order `PAID` and call
    `createSessionInternal(prisma, siteId, customerEmail)` to grant magic access.
 5. **Order lookup by `order_id`**, which we set equal to our `order.id` (same approach as
