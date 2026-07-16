@@ -12,6 +12,23 @@ export const createPaymentSchema = {
   },
 } as const;
 
+// Hutko test checkout — same as create, plus an optional response_url override
+// so you can control where the sandbox redirects after payment.
+export const createHutkoTestPaymentSchema = {
+  body: {
+    type: 'object',
+    required: ['productId', 'customerEmail', 'customerName', 'customerPhone'],
+    properties: {
+      productId: { type: 'string', minLength: 1 },
+      customerEmail: { type: 'string', format: 'email' },
+      customerName: { type: 'string', minLength: 1, maxLength: 255 },
+      customerPhone: { type: 'string', minLength: 7, maxLength: 20 },
+      responseUrl: { type: 'string', format: 'uri', maxLength: 2048 },
+    },
+    additionalProperties: false,
+  },
+} as const;
+
 // LiqPay sends form-encoded body: data=BASE64_JSON&signature=BASE64_SHA1
 export const liqpayCallbackSchema = {
   body: {

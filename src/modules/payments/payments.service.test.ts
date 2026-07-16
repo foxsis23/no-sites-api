@@ -85,6 +85,21 @@ describe('createHutkoPayment', () => {
     expect(sent.response_url).toBe('https://www.xn--80adds5ajn.net');
   });
 
+  it('uses an explicit responseUrl override when provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({ response: { checkout_url: 'https://pay.hutko.org/abc' } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createHutkoPayment(makePrisma(), site, hutkoConfig, API_BASE_URL, body, {
+      responseUrl: 'https://example.test/thanks',
+    });
+
+    const call = fetchMock.mock.calls[0] as [string, { body: string }];
+    const sent = JSON.parse(call[1].body).request;
+    expect(sent.response_url).toBe('https://example.test/thanks');
+  });
+
   it('rejects a product from another site', async () => {
     const prisma = makePrisma({
       product: { findUnique: vi.fn().mockResolvedValue({ ...activeProduct, siteId: 'other' }) },
