@@ -57,6 +57,7 @@ model Order {
   status         OrderStatus @default(PENDING)
   wayforpayData  Json?
   liqpayData     Json?
+  hutkoData      Json?
   createdAt      DateTime    @default(now())
 
   site    Site    @relation(fields: [siteId], references: [id])

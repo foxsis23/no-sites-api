@@ -2,10 +2,23 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Config } from '../../config.js';
 import { resolveSite } from '../../shared/middleware/resolveSite.js';
 import { adminAuth } from '../../shared/middleware/adminAuth.js';
-import { createPaymentSchema, webhookSchema, liqpayCallbackSchema } from './payments.schema.js';
-import { createPayment, handleWebhook, handleLiqPayCallback, getOrdersBysite } from './payments.service.js';
+import {
+  createPaymentSchema,
+  webhookSchema,
+  liqpayCallbackSchema,
+  hutkoCallbackSchema,
+} from './payments.schema.js';
+import {
+  createPayment,
+  handleWebhook,
+  handleLiqPayCallback,
+  createHutkoPayment,
+  handleHutkoCallback,
+  getOrdersBysite,
+} from './payments.service.js';
 import type { WebhookBody } from './wayforpay.js';
 import type { LiqPayCallbackBody } from './liqpay.js';
+import type { HutkoCallbackBody } from './hutko.js';
 
 interface PaymentsRouteOptions {
   config: Config;
@@ -25,6 +38,11 @@ export default async function paymentsRoute(
   const wfpConfig = {
     merchantAccount: opts.config.wayforpay.merchantAccount,
     merchantKey: opts.config.wayforpay.merchantKey,
+  };
+
+  const hutkoConfig = {
+    merchantId: opts.config.hutko.merchantId,
+    secretKey: opts.config.hutko.secretKey,
   };
 
   // Parse application/x-www-form-urlencoded for LiqPay callback
@@ -85,6 +103,40 @@ export default async function paymentsRoute(
       await handleLiqPayCallback(
         request.server.prisma,
         opts.config.liqpay.privateKey,
+        request.body,
+      );
+      return reply.status(200).send({ success: true });
+    },
+  );
+
+  // POST /payments/hutko/create (Hutko hosted checkout — returns redirect URL)
+  fastify.post<{ Body: CreatePaymentBody }>(
+    '/payments/hutko/create',
+    {
+      schema: createPaymentSchema,
+      preHandler: [resolveSite],
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (request: FastifyRequest<{ Body: CreatePaymentBody }>, reply: FastifyReply) => {
+      const result = await createHutkoPayment(
+        request.server.prisma,
+        request.site,
+        hutkoConfig,
+        opts.config.apiBaseUrl,
+        request.body,
+      );
+      return reply.status(201).send({ success: true, data: result });
+    },
+  );
+
+  // POST /payments/hutko-callback (Hutko server callback — JSON)
+  fastify.post<{ Body: HutkoCallbackBody }>(
+    '/payments/hutko-callback',
+    { schema: hutkoCallbackSchema },
+    async (request: FastifyRequest<{ Body: HutkoCallbackBody }>, reply: FastifyReply) => {
+      await handleHutkoCallback(
+        request.server.prisma,
+        hutkoConfig.secretKey,
         request.body,
       );
       return reply.status(200).send({ success: true });

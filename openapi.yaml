@@ -569,6 +569,101 @@ paths:
                   signature:
                     type: string
 
+  /payments/hutko/create:
+    post:
+      summary: Create Hutko payment (hosted checkout)
+      tags: [Payments]
+      description: |
+        Creates a PENDING order, requests a hosted checkout URL from Hutko,
+        and returns it. The frontend redirects the customer to `checkoutUrl`.
+      parameters:
+        - $ref: "#/components/parameters/HostHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, customerEmail, customerName, customerPhone]
+              properties:
+                productId:
+                  type: string
+                  format: uuid
+                customerEmail:
+                  type: string
+                  format: email
+                  example: user@example.com
+                customerName:
+                  type: string
+                  example: John Doe
+                customerPhone:
+                  type: string
+                  example: "+380991234567"
+      responses:
+        "201":
+          description: Order created, Hutko checkout URL returned
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Success"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          orderId:
+                            type: string
+                            format: uuid
+                          checkoutUrl:
+                            type: string
+                            format: uri
+                            example: https://pay.hutko.org/api/checkout/...
+        "404":
+          description: Product not found
+        "502":
+          description: Hutko checkout request failed
+
+  /payments/hutko-callback:
+    post:
+      summary: Hutko server callback (called by Hutko servers)
+      tags: [Payments]
+      description: |
+        Set this URL as `server_callback_url` (built from API_BASE_URL).
+        Verifies the SHA1 signature and updates order status
+        (PENDING → PAID or FAILED). Intermediate statuses (e.g. `processing`)
+        leave the order PENDING. On PAID, creates a session for the customer email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order_id, order_status, signature]
+              properties:
+                order_id:
+                  type: string
+                merchant_id:
+                  type: string
+                order_status:
+                  type: string
+                  example: approved
+                amount:
+                  type: string
+                currency:
+                  type: string
+                signature:
+                  type: string
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          description: Invalid Hutko signature
+
   /payments/orders:
     get:
       summary: List orders for site (admin)

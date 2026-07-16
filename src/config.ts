@@ -20,6 +20,11 @@ export const config = {
   liqpay: {
     privateKey: requireEnv('LIQPAY_PRIVATE_KEY'),
   },
+  hutko: {
+    merchantId: requireEnv('HUTKO_MERCHANT_ID'),
+    secretKey: requireEnv('HUTKO_SECRET_KEY'),
+  },
+  apiBaseUrl: requireEnv('API_BASE_URL'),
   smtp: {
     host: requireEnv('SMTP_HOST'),
     port: parseInt(process.env['SMTP_PORT'] ?? '587', 10),

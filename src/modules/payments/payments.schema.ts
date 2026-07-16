@@ -25,6 +25,22 @@ export const liqpayCallbackSchema = {
   },
 } as const;
 
+// Hutko server callback — JSON, keep loose as Hutko sends many extra fields
+export const hutkoCallbackSchema = {
+  body: {
+    type: 'object',
+    required: ['order_id', 'order_status', 'signature'],
+    properties: {
+      order_id: { type: 'string' },
+      merchant_id: {},
+      order_status: { type: 'string' },
+      amount: {},
+      currency: { type: 'string' },
+      signature: { type: 'string' },
+    },
+  },
+} as const;
+
 // WayForPay webhook body — keep loose as WayForPay may send extra fields
 export const webhookSchema = {
   body: {

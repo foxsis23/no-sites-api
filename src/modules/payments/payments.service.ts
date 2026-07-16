@@ -10,11 +10,27 @@ import {
 import type { WebhookBody, WayForPayFormData, WebhookResponse } from './wayforpay.js';
 import { verifyLiqPaySignature, decodeLiqPayData } from './liqpay.js';
 import type { LiqPayCallbackBody } from './liqpay.js';
+import {
+  buildCheckoutRequest,
+  requestCheckoutUrl,
+  verifyCallbackSignature,
+} from './hutko.js';
+import type { HutkoCallbackBody } from './hutko.js';
 import { createSessionInternal } from '../auth/auth.service.js';
 
 interface WayForPayConfig {
   merchantAccount: string;
   merchantKey: string;
+}
+
+interface HutkoConfig {
+  merchantId: string;
+  secretKey: string;
+}
+
+interface CreateHutkoPaymentResult {
+  orderId: string;
+  checkoutUrl: string;
 }
 
 interface CreatePaymentBody {
@@ -194,6 +210,124 @@ export async function handleLiqPayCallback(
 
   // 7. Create session for the customer
   await createSessionInternal(prisma, order.siteId, customerEmail);
+}
+
+export async function createHutkoPayment(
+  prisma: PrismaClient,
+  site: Site,
+  config: HutkoConfig,
+  apiBaseUrl: string,
+  body: CreatePaymentBody,
+): Promise<CreateHutkoPaymentResult> {
+  // 1. Fetch and validate product
+  const product = await prisma.product.findUnique({
+    where: { id: body.productId },
+  });
+
+  if (!product || product.siteId !== site.id) {
+    throw new AppError(404, 'Product not found');
+  }
+
+  if (!product.isActive) {
+    throw new AppError(400, 'Product is not available');
+  }
+
+  // 2. Create order with PENDING status
+  const order = await prisma.order.create({
+    data: {
+      siteId: site.id,
+      productId: product.id,
+      customerEmail: body.customerEmail,
+      customerName: body.customerName,
+      customerPhone: body.customerPhone,
+      amount: product.price,
+      status: 'PENDING',
+    },
+  });
+
+  // 3. Build Hutko checkout request
+  const amountKopiykas = Math.round(Number(product.price) * 100).toString();
+  const settings = site.settings as Record<string, unknown>;
+  const responseUrl =
+    typeof settings['paymentReturnUrl'] === 'string'
+      ? settings['paymentReturnUrl']
+      : `https://${site.domain}`;
+
+  const request = buildCheckoutRequest(
+    {
+      merchantId: config.merchantId,
+      orderId: order.id,
+      amountKopiykas,
+      currency: 'UAH',
+      orderDesc: product.title,
+      responseUrl,
+      serverCallbackUrl: `${apiBaseUrl}/payments/hutko-callback`,
+    },
+    config.secretKey,
+  );
+
+  // 4. Request the hosted checkout URL
+  const checkoutUrl = await requestCheckoutUrl(request);
+
+  return { orderId: order.id, checkoutUrl };
+}
+
+export async function handleHutkoCallback(
+  prisma: PrismaClient,
+  secret: string,
+  body: HutkoCallbackBody,
+): Promise<void> {
+  // 1. Verify signature
+  if (!verifyCallbackSignature(body, secret)) {
+    throw new AppError(400, 'Invalid Hutko signature');
+  }
+
+  // 2. Find order by order_id (= order.id)
+  const order = await prisma.order.findUnique({
+    where: { id: body.order_id },
+  });
+
+  // Unknown order — accept without side effects to avoid retry storms
+  if (!order) {
+    return;
+  }
+
+  // 3. Idempotency: only act on PENDING orders
+  if (order.status !== 'PENDING') {
+    return;
+  }
+
+  // 4. Map Hutko status. Intermediate statuses (e.g. `processing`) leave the
+  //    order PENDING and wait for a terminal callback.
+  const terminalStatus = mapHutkoStatus(body.order_status);
+  if (!terminalStatus) {
+    return;
+  }
+
+  await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: terminalStatus,
+      hutkoData: body as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  if (terminalStatus === 'PAID') {
+    await createSessionInternal(prisma, order.siteId, order.customerEmail);
+  }
+}
+
+function mapHutkoStatus(orderStatus: string): 'PAID' | 'FAILED' | null {
+  switch (orderStatus) {
+    case 'approved':
+      return 'PAID';
+    case 'declined':
+    case 'expired':
+    case 'reversed':
+      return 'FAILED';
+    default:
+      return null;
+  }
 }
 
 export async function getOrdersBysite(
