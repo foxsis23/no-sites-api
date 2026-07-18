@@ -16,6 +16,7 @@ import {
   createHutkoPayment,
   handleHutkoCallback,
   getOrdersBysite,
+  buildPaymentRedirectTarget,
   HUTKO_TEST_CONFIG,
   HUTKO_TEST_RESPONSE_URL,
 } from './payments.service.js';
@@ -159,6 +160,23 @@ export default async function paymentsRoute(
       return reply.status(201).send({ success: true, data: result });
     },
   );
+
+  // GET|POST /payments/hutko/return (browser return after Hutko checkout)
+  // Hutko/Fondy redirects here via POST. Static SPA hosts 404 on POST, so we
+  // accept it, then 302 the browser (GET) to the SPA page passed as `?to=`.
+  const handleHutkoReturn = async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const query = (request.query ?? {}) as { to?: string; order_id?: string };
+    const orderId =
+      (typeof body['order_id'] === 'string' ? (body['order_id'] as string) : undefined) ??
+      query.order_id;
+
+    const target = buildPaymentRedirectTarget(query.to, orderId);
+    return reply.redirect(target);
+  };
+
+  fastify.get('/payments/hutko/return', handleHutkoReturn);
+  fastify.post('/payments/hutko/return', handleHutkoReturn);
 
   // POST /payments/hutko-callback (Hutko server callback — JSON)
   fastify.post<{ Body: HutkoCallbackBody }>(
