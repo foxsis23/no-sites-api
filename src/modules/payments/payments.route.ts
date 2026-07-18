@@ -183,9 +183,16 @@ export default async function paymentsRoute(
     '/payments/hutko-callback',
     { schema: hutkoCallbackSchema },
     async (request: FastifyRequest<{ Body: HutkoCallbackBody }>, reply: FastifyReply) => {
+      // Sandbox checkouts are signed with the public test merchant's secret,
+      // production ones with our own. Pick the secret by merchant_id so test
+      // callbacks verify and grant access too.
+      const isTest =
+        String(request.body.merchant_id) === HUTKO_TEST_CONFIG.merchantId;
+      const secretKey = isTest ? HUTKO_TEST_CONFIG.secretKey : hutkoConfig.secretKey;
+
       await handleHutkoCallback(
         request.server.prisma,
-        hutkoConfig.secretKey,
+        secretKey,
         request.body,
       );
       return reply.status(200).send({ success: true });
