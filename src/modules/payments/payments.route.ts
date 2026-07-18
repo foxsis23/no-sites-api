@@ -16,6 +16,7 @@ import {
   createHutkoPayment,
   handleHutkoCallback,
   getOrdersBysite,
+  getOrderStatus,
   buildPaymentRedirectTarget,
   HUTKO_TEST_CONFIG,
   HUTKO_TEST_RESPONSE_URL,
@@ -196,6 +197,25 @@ export default async function paymentsRoute(
         request.body,
       );
       return reply.status(200).send({ success: true });
+    },
+  );
+
+  // GET /payments/orders/:orderId/status (public — poll a single order)
+  // Lets the device that opened the checkout detect payment even when the
+  // post-payment redirect happens on another device (QR pay on phone).
+  fastify.get<{ Params: { orderId: string } }>(
+    '/payments/orders/:orderId/status',
+    {
+      preHandler: [resolveSite],
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async (request: FastifyRequest<{ Params: { orderId: string } }>, reply: FastifyReply) => {
+      const result = await getOrderStatus(
+        request.server.prisma,
+        request.site.id,
+        request.params.orderId,
+      );
+      return reply.send({ success: true, data: result });
     },
   );
 

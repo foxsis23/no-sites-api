@@ -1,4 +1,4 @@
-import type { PrismaClient, Order } from '@prisma/client';
+import type { PrismaClient, Order, OrderStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import type { Site } from '@prisma/client';
 import { AppError } from '../../shared/errors/AppError.js';
@@ -388,4 +388,24 @@ export async function getOrdersBysite(
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
+}
+
+// Public status lookup for polling (e.g. cross-device QR pay, where the
+// post-payment redirect lands on the phone, not the desktop that opened
+// the checkout). Scoped by site so an order id can't be read cross-site.
+export async function getOrderStatus(
+  prisma: PrismaClient,
+  siteId: string,
+  orderId: string,
+): Promise<{ orderId: string; status: OrderStatus }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, siteId: true, status: true },
+  });
+
+  if (!order || order.siteId !== siteId) {
+    throw new AppError(404, 'Order not found');
+  }
+
+  return { orderId: order.id, status: order.status };
 }

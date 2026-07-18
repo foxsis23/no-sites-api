@@ -3,6 +3,7 @@ import type { PrismaClient, Site } from '@prisma/client';
 import {
   createHutkoPayment,
   handleHutkoCallback,
+  getOrderStatus,
   buildHutkoReturnUrl,
   buildPaymentRedirectTarget,
   HUTKO_TEST_CONFIG,
@@ -182,6 +183,45 @@ describe('buildPaymentRedirectTarget', () => {
     expect(() => buildPaymentRedirectTarget('javascript:alert(1)', 'order-1')).toThrow(
       /invalid return target/i,
     );
+  });
+});
+
+describe('getOrderStatus', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('returns the status for an order on the site', async () => {
+    const prisma = makePrisma({
+      order: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: 'order-1', siteId: 'site-1', status: 'PAID' }),
+      },
+    });
+
+    await expect(getOrderStatus(prisma, 'site-1', 'order-1')).resolves.toEqual({
+      orderId: 'order-1',
+      status: 'PAID',
+    });
+  });
+
+  it('rejects an order from another site', async () => {
+    const prisma = makePrisma({
+      order: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: 'order-1', siteId: 'other', status: 'PAID' }),
+      },
+    });
+
+    await expect(getOrderStatus(prisma, 'site-1', 'order-1')).rejects.toThrow(/not found/i);
+  });
+
+  it('rejects an unknown order', async () => {
+    const prisma = makePrisma({
+      order: { findUnique: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(getOrderStatus(prisma, 'site-1', 'nope')).rejects.toThrow(/not found/i);
   });
 });
 
