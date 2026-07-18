@@ -1,4 +1,4 @@
-import type { PrismaClient, Order } from '@prisma/client';
+import type { PrismaClient, Order, OrderStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import type { Site } from '@prisma/client';
 import { AppError } from '../../shared/errors/AppError.js';
@@ -37,6 +37,29 @@ export const HUTKO_TEST_CONFIG: HutkoConfig = {
 
 // Default post-payment redirect for the Hutko sandbox (тривога-нет prod home).
 export const HUTKO_TEST_RESPONSE_URL = 'https://www.xn--80adds5ajn.net';
+
+// Wraps the final SPA return page in a backend endpoint that accepts Hutko's
+// POST redirect and bounces the browser to `finalUrl` as a GET.
+export function buildHutkoReturnUrl(apiBaseUrl: string, finalUrl: string): string {
+  return `${apiBaseUrl}/payments/hutko/return?to=${encodeURIComponent(finalUrl)}`;
+}
+
+// Builds the GET redirect target for the return endpoint. Rejects non-http(s)
+// destinations to avoid open-redirect / javascript: abuse.
+export function buildPaymentRedirectTarget(
+  to: string | undefined,
+  orderId: string | undefined,
+): string {
+  if (!to || !/^https?:\/\//i.test(to)) {
+    throw new AppError(400, 'Invalid return target');
+  }
+
+  const url = new URL(to);
+  if (orderId) {
+    url.searchParams.set('order', orderId);
+  }
+  return url.toString();
+}
 
 interface CreateHutkoOptions {
   // Overrides the response_url the customer is redirected to after payment.
@@ -265,11 +288,19 @@ export async function createHutkoPayment(
   // 3. Build Hutko checkout request
   const amountKopiykas = Math.round(Number(product.price) * 100).toString();
   const settings = site.settings as Record<string, unknown>;
-  const responseUrl =
+
+  // Final SPA page the customer should land on after payment.
+  const finalReturnUrl =
     options.responseUrl ??
     (typeof settings['paymentReturnUrl'] === 'string'
       ? settings['paymentReturnUrl']
       : `https://${site.domain}`);
+
+  // Hutko (Fondy) redirects to response_url via a browser POST. Static SPA
+  // hosts only answer GET on client routes, so a direct POST 404s. Point
+  // Hutko at our backend return endpoint instead; it swallows the POST and
+  // 302-redirects the browser (as a GET) to finalReturnUrl.
+  const responseUrl = buildHutkoReturnUrl(apiBaseUrl, finalReturnUrl);
 
   const request = buildCheckoutRequest(
     {
@@ -357,4 +388,24 @@ export async function getOrdersBysite(
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
+}
+
+// Public status lookup for polling (e.g. cross-device QR pay, where the
+// post-payment redirect lands on the phone, not the desktop that opened
+// the checkout). Scoped by site so an order id can't be read cross-site.
+export async function getOrderStatus(
+  prisma: PrismaClient,
+  siteId: string,
+  orderId: string,
+): Promise<{ orderId: string; status: OrderStatus }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, siteId: true, status: true },
+  });
+
+  if (!order || order.siteId !== siteId) {
+    throw new AppError(404, 'Order not found');
+  }
+
+  return { orderId: order.id, status: order.status };
 }

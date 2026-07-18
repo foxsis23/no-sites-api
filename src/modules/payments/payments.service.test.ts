@@ -3,6 +3,9 @@ import type { PrismaClient, Site } from '@prisma/client';
 import {
   createHutkoPayment,
   handleHutkoCallback,
+  getOrderStatus,
+  buildHutkoReturnUrl,
+  buildPaymentRedirectTarget,
   HUTKO_TEST_CONFIG,
   HUTKO_TEST_RESPONSE_URL,
 } from './payments.service.js';
@@ -87,7 +90,11 @@ describe('createHutkoPayment', () => {
     const sent = JSON.parse(call[1].body).request;
     expect(sent.amount).toBe('1000');
     expect(sent.server_callback_url).toBe('https://api.example.com/payments/hutko-callback');
-    expect(sent.response_url).toBe('https://www.xn--80adds5ajn.net');
+    // response_url is wrapped in the backend return endpoint so Hutko's POST
+    // redirect lands on the API, not directly on the static SPA route.
+    expect(sent.response_url).toBe(
+      'https://api.example.com/payments/hutko/return?to=https%3A%2F%2Fwww.xn--80adds5ajn.net',
+    );
   });
 
   // Mirrors the POST /payments/hutko/test route wiring: sandbox merchant +
@@ -104,7 +111,9 @@ describe('createHutkoPayment', () => {
 
     const call = fetchMock.mock.calls[0] as [string, { body: string }];
     const sent = JSON.parse(call[1].body).request;
-    expect(sent.response_url).toBe('https://www.xn--80adds5ajn.net');
+    expect(sent.response_url).toBe(
+      'https://api.example.com/payments/hutko/return?to=https%3A%2F%2Fwww.xn--80adds5ajn.net',
+    );
     expect(sent.merchant_id).toBe('1700002');
   });
 
@@ -136,6 +145,83 @@ describe('createHutkoPayment', () => {
     await expect(
       createHutkoPayment(makePrisma(), site, hutkoConfig, API_BASE_URL, body),
     ).rejects.toThrow(/Hutko/);
+  });
+});
+
+describe('buildHutkoReturnUrl', () => {
+  it('wraps the final URL in the backend return endpoint', () => {
+    expect(buildHutkoReturnUrl('https://api.example.com', 'https://shop.test/thank-you')).toBe(
+      'https://api.example.com/payments/hutko/return?to=https%3A%2F%2Fshop.test%2Fthank-you',
+    );
+  });
+});
+
+describe('buildPaymentRedirectTarget', () => {
+  it('appends the order id as a query param', () => {
+    expect(buildPaymentRedirectTarget('https://shop.test/thank-you', 'order-1')).toBe(
+      'https://shop.test/thank-you?order=order-1',
+    );
+  });
+
+  it('preserves existing query params on the target', () => {
+    expect(buildPaymentRedirectTarget('https://shop.test/thank-you?a=1', 'order-1')).toBe(
+      'https://shop.test/thank-you?a=1&order=order-1',
+    );
+  });
+
+  it('works without an order id', () => {
+    expect(buildPaymentRedirectTarget('https://shop.test/thank-you', undefined)).toBe(
+      'https://shop.test/thank-you',
+    );
+  });
+
+  it('rejects a missing target', () => {
+    expect(() => buildPaymentRedirectTarget(undefined, 'order-1')).toThrow(/invalid return target/i);
+  });
+
+  it('rejects a non-http(s) target (open-redirect / javascript: guard)', () => {
+    expect(() => buildPaymentRedirectTarget('javascript:alert(1)', 'order-1')).toThrow(
+      /invalid return target/i,
+    );
+  });
+});
+
+describe('getOrderStatus', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('returns the status for an order on the site', async () => {
+    const prisma = makePrisma({
+      order: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: 'order-1', siteId: 'site-1', status: 'PAID' }),
+      },
+    });
+
+    await expect(getOrderStatus(prisma, 'site-1', 'order-1')).resolves.toEqual({
+      orderId: 'order-1',
+      status: 'PAID',
+    });
+  });
+
+  it('rejects an order from another site', async () => {
+    const prisma = makePrisma({
+      order: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: 'order-1', siteId: 'other', status: 'PAID' }),
+      },
+    });
+
+    await expect(getOrderStatus(prisma, 'site-1', 'order-1')).rejects.toThrow(/not found/i);
+  });
+
+  it('rejects an unknown order', async () => {
+    const prisma = makePrisma({
+      order: { findUnique: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(getOrderStatus(prisma, 'site-1', 'nope')).rejects.toThrow(/not found/i);
   });
 });
 

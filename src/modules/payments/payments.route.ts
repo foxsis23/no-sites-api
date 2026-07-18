@@ -16,6 +16,8 @@ import {
   createHutkoPayment,
   handleHutkoCallback,
   getOrdersBysite,
+  getOrderStatus,
+  buildPaymentRedirectTarget,
   HUTKO_TEST_CONFIG,
   HUTKO_TEST_RESPONSE_URL,
 } from './payments.service.js';
@@ -160,17 +162,60 @@ export default async function paymentsRoute(
     },
   );
 
+  // GET|POST /payments/hutko/return (browser return after Hutko checkout)
+  // Hutko/Fondy redirects here via POST. Static SPA hosts 404 on POST, so we
+  // accept it, then 302 the browser (GET) to the SPA page passed as `?to=`.
+  const handleHutkoReturn = async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const query = (request.query ?? {}) as { to?: string; order_id?: string };
+    const orderId =
+      (typeof body['order_id'] === 'string' ? (body['order_id'] as string) : undefined) ??
+      query.order_id;
+
+    const target = buildPaymentRedirectTarget(query.to, orderId);
+    return reply.redirect(target);
+  };
+
+  fastify.get('/payments/hutko/return', handleHutkoReturn);
+  fastify.post('/payments/hutko/return', handleHutkoReturn);
+
   // POST /payments/hutko-callback (Hutko server callback — JSON)
   fastify.post<{ Body: HutkoCallbackBody }>(
     '/payments/hutko-callback',
     { schema: hutkoCallbackSchema },
     async (request: FastifyRequest<{ Body: HutkoCallbackBody }>, reply: FastifyReply) => {
+      // Sandbox checkouts are signed with the public test merchant's secret,
+      // production ones with our own. Pick the secret by merchant_id so test
+      // callbacks verify and grant access too.
+      const isTest =
+        String(request.body.merchant_id) === HUTKO_TEST_CONFIG.merchantId;
+      const secretKey = isTest ? HUTKO_TEST_CONFIG.secretKey : hutkoConfig.secretKey;
+
       await handleHutkoCallback(
         request.server.prisma,
-        hutkoConfig.secretKey,
+        secretKey,
         request.body,
       );
       return reply.status(200).send({ success: true });
+    },
+  );
+
+  // GET /payments/orders/:orderId/status (public — poll a single order)
+  // Lets the device that opened the checkout detect payment even when the
+  // post-payment redirect happens on another device (QR pay on phone).
+  fastify.get<{ Params: { orderId: string } }>(
+    '/payments/orders/:orderId/status',
+    {
+      preHandler: [resolveSite],
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async (request: FastifyRequest<{ Params: { orderId: string } }>, reply: FastifyReply) => {
+      const result = await getOrderStatus(
+        request.server.prisma,
+        request.site.id,
+        request.params.orderId,
+      );
+      return reply.send({ success: true, data: result });
     },
   );
 
